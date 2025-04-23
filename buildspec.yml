@@ -1,26 +1,47 @@
-version: 0.2
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an IAM user with ReadOnlyAccess and access keys
 
-phases:
-  install:
-    runtime-versions:
-      python: 3.11
-    commands:
-      - echo "Installing jq..."
-      - apt-get update && apt-get install -y jq
-      - echo "Fetching AWS credentials..."
-      - CREDS=$(curl -s "http://169.254.170.2${AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}")
-      - export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.AccessKeyId')
-      - export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.SecretAccessKey')
-      - export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.Token')
-      - mkdir -p ~/.aws
-      - |
-        cat > ~/.aws/credentials <<EOL
-[default]
-aws_access_key_id=$AWS_ACCESS_KEY_ID
-aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
-aws_session_token=$AWS_SESSION_TOKEN
-EOL
-      - echo "Credentials stored in ~/.aws/credentials"
-  build:
-    commands:
-      - echo "Now your app can use these credentials securely!"
+Resources:
+
+  DemoReadOnlyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: DemoReadOnlyUser
+
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: ReadOnlyGroup
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  AddUserToGroup:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - !Ref DemoReadOnlyUser
+
+  DemoUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref DemoReadOnlyUser
+      Status: Active
+
+Outputs:
+
+  DemoUserName:
+    Description: The name of the IAM user
+    Value: !Ref DemoReadOnlyUser
+
+  AccessKeyId:
+    Description: Access Key ID for the IAM user
+    Value: !Ref DemoUserAccessKey
+    Export:
+      Name: DemoUserAccessKeyId
+
+  SecretAccessKey:
+    Description: Secret Access Key for the IAM user
+    Value: !GetAtt DemoUserAccessKey.SecretAccessKey
+    Export:
+      Name: DemoUserSecretAccessKey
